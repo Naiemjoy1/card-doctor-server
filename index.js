@@ -66,6 +66,13 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/bookings/:room_id", async (req, res) => {
+      const room_id = req.params.room_id;
+      const query = { room_id: room_id };
+      const result = await bookingCollection.findOne(query);
+      res.send(result);
+    });
+
     app.get("/bookings/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -90,6 +97,13 @@ async function run() {
     // review
     app.get("/reviews", async (req, res) => {
       const result = await reviewCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.get("/reviews/:review_id", async (req, res) => {
+      const review_id = req.params.review_id;
+      const query = { review_id: review_id };
+      const result = await reviewCollection.findOne(query);
       res.send(result);
     });
 
