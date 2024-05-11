@@ -65,6 +65,14 @@ async function run() {
       const result = await bookingCollection.find(query).toArray();
       res.send(result);
     });
+
+    app.get("/bookings/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await bookingCollection.findOne(query);
+      res.send(result);
+    });
+
     app.post("/bookings", async (req, res) => {
       const booking = req.body;
       console.log(booking);
