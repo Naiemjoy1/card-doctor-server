@@ -27,6 +27,7 @@ async function run() {
 
     const roomCollection = client.db("roomBook").collection("rooms");
     const bookingCollection = client.db("roomBook").collection("bookings");
+    const reviewCollection = client.db("roomBook").collection("reviews");
 
     app.get("/rooms", async (req, res) => {
       const { minPrice, maxPrice } = req.query;
@@ -75,6 +76,19 @@ async function run() {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await bookingCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // review
+    app.get("/reviews", async (req, res) => {
+      const result = await reviewCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.post("/reviews", async (req, res) => {
+      const review = req.body;
+      console.log(review);
+      const result = await reviewCollection.insertOne(review);
       res.send(result);
     });
 
