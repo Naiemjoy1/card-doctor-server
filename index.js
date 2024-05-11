@@ -28,7 +28,20 @@ async function run() {
     const roomCollection = client.db("roomBook").collection("rooms");
 
     app.get("/rooms", async (req, res) => {
-      const cursor = roomCollection.find();
+      const { minPrice, maxPrice } = req.query;
+
+      let filter = {};
+      if (minPrice && maxPrice) {
+        filter = {
+          pricePerNight: { $gte: parseInt(minPrice), $lte: parseInt(maxPrice) },
+        };
+      } else if (minPrice) {
+        filter = { pricePerNight: { $gte: parseInt(minPrice) } };
+      } else if (maxPrice) {
+        filter = { pricePerNight: { $lte: parseInt(maxPrice) } };
+      }
+
+      const cursor = roomCollection.find(filter);
       const result = await cursor.toArray();
       res.send(result);
     });
