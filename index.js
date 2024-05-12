@@ -22,8 +22,8 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
-    // await client.connect();
+    // Connect the client to the server (optional starting in v4.7)
+    await client.connect();
 
     const roomCollection = client.db("roomBook").collection("rooms");
     const bookingCollection = client.db("roomBook").collection("bookings");
@@ -43,15 +43,8 @@ async function run() {
         filter = { pricePerNight: { $lte: parseInt(maxPrice) } };
       }
 
-      const cursor = roomCollection.find(filter);
+      const cursor = roomCollection.find(filter).sort({ pricePerNight: 1 }); // Sort by pricePerNight in ascending order
       const result = await cursor.toArray();
-      res.send(result);
-    });
-
-    app.get("/rooms/:id", async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await roomCollection.findOne(query);
       res.send(result);
     });
 
@@ -66,17 +59,18 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/bookings/:room_id", async (req, res) => {
-      const room_id = req.params.room_id;
-      const query = { room_id: room_id };
-      const result = await bookingCollection.findOne(query);
-      res.send(result);
-    });
-
     app.get("/bookings/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await bookingCollection.findOne(query);
+      res.send(result);
+    });
+
+    // New route to get bookings by room_id
+    app.get("/bookings/room/:room_id", async (req, res) => {
+      const room_id = req.params.room_id;
+      const query = { room_id: room_id };
+      const result = await bookingCollection.find(query).toArray();
       res.send(result);
     });
 
@@ -92,6 +86,36 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const result = await bookingCollection.deleteOne(query);
       res.send(result);
+    });
+
+    app.put("/bookings/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedDetails = req.body;
+      const details = {
+        $set: {
+          checkInDate: updatedDetails.checkInDate,
+          checkOutDate: updatedDetails.checkOutDate, // Corrected to 'checkOutDate'
+          numRooms: updatedDetails.numRooms,
+          numAdults: updatedDetails.numAdults,
+          numChildren: updatedDetails.numChildren,
+          totalCost: updatedDetails.totalCost,
+          pricePerNight: updatedDetails.pricePerNight,
+        },
+      };
+      const result = await bookingCollection.updateOne(
+        filter,
+        details,
+        options
+      );
+
+      // Sending a response indicating success or failure
+      if (result.modifiedCount > 0) {
+        res.status(200).json({ message: "Booking updated successfully" });
+      } else {
+        res.status(404).json({ message: "Booking not found" });
+      }
     });
 
     // review
