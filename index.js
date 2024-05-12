@@ -49,97 +49,30 @@ async function run() {
     });
 
     // bookings
-    app.get("/bookings", async (req, res) => {
-      console.log(req.query.email);
-      let query = {};
-      if (req.query?.email) {
-        query = { email: req.query.email };
-      }
-      const result = await bookingCollection.find(query).toArray();
-      res.send(result);
-    });
-
-    app.get("/bookings/:id", async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await bookingCollection.findOne(query);
-      res.send(result);
-    });
-
-    // New route to get bookings by room_id
-    app.get("/bookings/room/:room_id", async (req, res) => {
-      const room_id = req.params.room_id;
-      const query = { room_id: room_id };
-      const result = await bookingCollection.find(query).toArray();
-      res.send(result);
-    });
-
-    app.post("/bookings", async (req, res) => {
-      const booking = req.body;
-      console.log(booking);
-      const result = await bookingCollection.insertOne(booking);
-      res.send(result);
-    });
-
-    app.delete("/bookings/:id", async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await bookingCollection.deleteOne(query);
-      res.send(result);
-    });
-
-    app.put("/bookings/:id", async (req, res) => {
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) };
-      const options = { upsert: true };
-      const updatedDetails = req.body;
-      const details = {
-        $set: {
-          checkInDate: updatedDetails.checkInDate,
-          checkOutDate: updatedDetails.checkOutDate, // Corrected to 'checkOutDate'
-          numRooms: updatedDetails.numRooms,
-          numAdults: updatedDetails.numAdults,
-          numChildren: updatedDetails.numChildren,
-          totalCost: updatedDetails.totalCost,
-          pricePerNight: updatedDetails.pricePerNight,
-        },
-      };
-      const result = await bookingCollection.updateOne(
-        filter,
-        details,
-        options
-      );
-
-      // Sending a response indicating success or failure
-      if (result.modifiedCount > 0) {
-        res.status(200).json({ message: "Booking updated successfully" });
-      } else {
-        res.status(404).json({ message: "Booking not found" });
-      }
-    });
+    // Add your booking routes here
 
     // review
     app.get("/reviews", async (req, res) => {
-      const result = await reviewCollection.find().toArray();
+      const { minRating, maxRating } = req.query;
+
+      let filter = {};
+      if (minRating && maxRating) {
+        filter = {
+          rating: { $gte: parseInt(minRating), $lte: parseInt(maxRating) },
+        };
+      } else if (minRating) {
+        filter = { rating: { $gte: parseInt(minRating) } };
+      } else if (maxRating) {
+        filter = { rating: { $lte: parseInt(maxRating) } };
+      }
+
+      const result = await reviewCollection.find(filter).toArray();
       res.send(result);
     });
 
-    app.get("/reviews/:review_id", async (req, res) => {
-      const review_id = req.params.review_id;
-      const query = { review_id: review_id };
-      const result = await reviewCollection.findOne(query);
-      res.send(result);
-    });
-
-    app.post("/reviews", async (req, res) => {
-      const review = req.body;
-      console.log(review);
-      const result = await reviewCollection.insertOne(review);
-      res.send(result);
-    });
+    // Add your other review routes here
 
     // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
