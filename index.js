@@ -1,5 +1,7 @@
 const express = require("express");
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const moment = require("moment");
@@ -7,8 +9,18 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://cozystay-hotel-booking.web.app",
+      "https://cozystay-hotel-booking.firebaseapp.com",
+    ],
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ccm0dfs.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -21,16 +33,62 @@ const client = new MongoClient(uri, {
   },
 });
 
+// middlewares
+const logger = async (req, res, next) => {
+  console.log("log info", req.host, req.originalUrl);
+  next();
+};
+
+const verifyToken = async (req, res, next) => {
+  const token = req.cookies?.token;
+  console.log("value of token in middleware", token);
+  if (!token) {
+    return res.status(401).send({ message: "not authorize" });
+  }
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      console.log(err);
+      return res.status(401).send({ message: "unauthorized" });
+    }
+    console.log("value in the token", decoded);
+    req.user = decoded;
+    next();
+  });
+};
+
 async function run() {
   try {
     // Connect the client to the server (optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const roomCollection = client.db("roomBook").collection("rooms");
     const bookingCollection = client.db("roomBook").collection("bookings");
     const reviewCollection = client.db("roomBook").collection("reviews");
 
-    app.get("/rooms", async (req, res) => {
+    // auth api
+    app.post("/jwt", logger, async (req, res) => {
+      const user = req.body;
+      console.log("user for token", user);
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+        })
+        .send({ success: true });
+    });
+
+    app.post("/logout", async (req, res) => {
+      const user = req.body;
+      console.log("logging out", user);
+      res.clearCookie("token", { maxAge: 0 }).send({ success: true });
+    });
+
+    // rooms
+    app.get("/rooms", logger, async (req, res) => {
       const { minPrice, maxPrice } = req.query;
 
       let filter = {};
@@ -57,8 +115,15 @@ async function run() {
     });
 
     // bookings
-    app.get("/bookings", async (req, res) => {
+    app.get("/bookings", logger, verifyToken, async (req, res) => {
       console.log(req.query.email);
+      //   console.log("token", req.cookies.token);
+
+      if (req.query.email !== req.user.email) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      console.log();
+
       let query = {};
       if (req.query?.email) {
         query = { email: req.query.email };
@@ -67,7 +132,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/bookings/:id", async (req, res) => {
+    app.get("/bookings/:id", logger, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await bookingCollection.findOne(query);
@@ -75,21 +140,21 @@ async function run() {
     });
 
     // New route to get bookings by room_id
-    app.get("/bookings/room/:room_id", async (req, res) => {
+    app.get("/bookings/room/:room_id", logger, async (req, res) => {
       const room_id = req.params.room_id;
       const query = { room_id: room_id };
       const result = await bookingCollection.find(query).toArray();
       res.send(result);
     });
 
-    app.post("/bookings", async (req, res) => {
+    app.post("/bookings", logger, async (req, res) => {
       const booking = req.body;
       console.log(booking);
       const result = await bookingCollection.insertOne(booking);
       res.send(result);
     });
 
-    app.post("/bookings/:id/cancel", async (req, res) => {
+    app.post("/bookings/:id/cancel", logger, async (req, res) => {
       const bookingId = req.params.id;
 
       try {
@@ -144,14 +209,14 @@ async function run() {
       }
     });
 
-    app.delete("/bookings/:id", async (req, res) => {
+    app.delete("/bookings/:id", logger, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await bookingCollection.deleteOne(query);
       res.send(result);
     });
 
-    app.put("/bookings/:id", async (req, res) => {
+    app.put("/bookings/:id", logger, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const options = { upsert: true };
@@ -159,7 +224,7 @@ async function run() {
       const details = {
         $set: {
           checkInDate: updatedDetails.checkInDate,
-          checkOutDate: updatedDetails.checkOutDate, // Corrected to 'checkOutDate'
+          checkOutDate: updatedDetails.checkOutDate,
           numRooms: updatedDetails.numRooms,
           numAdults: updatedDetails.numAdults,
           numChildren: updatedDetails.numChildren,
