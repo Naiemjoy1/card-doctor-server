@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
+const moment = require("moment");
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -86,6 +87,61 @@ async function run() {
       console.log(booking);
       const result = await bookingCollection.insertOne(booking);
       res.send(result);
+    });
+
+    app.post("/bookings/:id/cancel", async (req, res) => {
+      const bookingId = req.params.id;
+
+      try {
+        // Retrieve the booking from the database
+        const booking = await bookingCollection.findOne({
+          _id: new ObjectId(bookingId),
+        });
+
+        if (!booking) {
+          return res.status(404).json({ message: "Booking not found" });
+        }
+
+        // Check if the cancellation deadline has passed
+        const currentDate = moment();
+        const checkInDate = moment(booking.checkInDate);
+        const cancellationDeadline = checkInDate.subtract(1, "days");
+
+        if (currentDate.isAfter(cancellationDeadline)) {
+          return res
+            .status(400)
+            .json({ message: "Cancellation deadline has passed" });
+        }
+
+        // Check if the check-in date is more than 24 hours away
+        if (checkInDate.diff(currentDate, "hours") <= 24) {
+          return res.status(400).json({
+            message: "Check-in date is less than or equal to 24 hours away",
+          });
+        }
+
+        // Update the booking status to canceled
+        const updateResult = await bookingCollection.updateOne(
+          { _id: new ObjectId(bookingId) },
+          { $set: { status: "canceled" } }
+        );
+
+        // Make the room available again
+        await roomCollection.updateOne(
+          { _id: new ObjectId(booking.room_id) },
+          { $set: { available: true } }
+        );
+
+        // Delete the booking
+        const deleteResult = await bookingCollection.deleteOne({
+          _id: new ObjectId(bookingId),
+        });
+
+        res.status(200).json({ message: "Booking canceled successfully" });
+      } catch (error) {
+        console.error("Error canceling booking:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
     });
 
     app.delete("/bookings/:id", async (req, res) => {
