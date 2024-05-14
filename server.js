@@ -43,17 +43,17 @@ const verifyToken = async (req, res, next) => {
   const token = req.cookies?.token;
   console.log("value of token in middleware", token);
   if (!token) {
-    return res.status(401).send({ message: "not authorized" });
+    return res.status(401).send({ message: "not authorize" });
   }
-  try {
-    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      console.log(err);
+      return res.status(401).send({ message: "unauthorized" });
+    }
     console.log("value in the token", decoded);
     req.user = decoded;
     next();
-  } catch (err) {
-    console.error("Error verifying token:", err);
-    return res.status(401).send({ message: "unauthorized" });
-  }
+  });
 };
 
 async function run() {
@@ -115,8 +115,15 @@ async function run() {
     });
 
     // bookings
-    app.get("/bookings", logger, async (req, res) => {
+    app.get("/bookings", logger, verifyToken, async (req, res) => {
       console.log(req.query.email);
+      //   console.log("token", req.cookies.token);
+
+      if (req.query.email !== req.user.email) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      console.log();
+
       let query = {};
       if (req.query?.email) {
         query = { email: req.query.email };
@@ -240,7 +247,6 @@ async function run() {
     });
 
     // review
-    // review
     app.get("/reviews", async (req, res) => {
       const { minRating, maxRating } = req.query;
 
@@ -255,13 +261,8 @@ async function run() {
         filter = { rating: { $lte: parseInt(maxRating) } };
       }
 
-      try {
-        const result = await reviewCollection.find(filter).toArray();
-        res.send(result);
-      } catch (error) {
-        console.error("Error fetching reviews:", error);
-        res.status(500).send({ message: "Internal server error" });
-      }
+      const result = await reviewCollection.find(filter).toArray();
+      res.send(result);
     });
 
     app.get("/reviews/:review_id", async (req, res) => {
