@@ -64,6 +64,14 @@ async function run() {
     const roomCollection = client.db("roomBook").collection("rooms");
     const bookingCollection = client.db("roomBook").collection("bookings");
     const reviewCollection = client.db("roomBook").collection("reviews");
+    const imageCollection = client.db("roomBook").collection("images");
+
+    // images
+    app.get("/images", async (req, res) => {
+      const cursor = imageCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
 
     // auth api
     app.post("/jwt", logger, async (req, res) => {
@@ -77,6 +85,7 @@ async function run() {
           httpOnly: true,
           secure: true,
           sameSite: "none",
+          maxAge: 3600,
         })
         .send({ success: true });
     });
@@ -115,7 +124,7 @@ async function run() {
     });
 
     // bookings
-    app.get("/bookings", logger, async (req, res) => {
+    app.get("/bookings", logger, verifyToken, async (req, res) => {
       console.log(req.query.email);
       let query = {};
       if (req.query?.email) {
